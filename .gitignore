@@ -15,9 +15,5 @@ venv/
 .vscode/
 .idea/
 
-# Development planning docs (not needed in repo)
-APTS-RELEASE-TOOL-PLAN.md
-CLAUDE-CODE-BRIEFING.md
-
 # Example reference files (large binaries)
 example-bin-files-reference/
