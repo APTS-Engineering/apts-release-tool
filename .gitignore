@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Development planning docs (not needed in repo)
+APTS-RELEASE-TOOL-PLAN.md
+CLAUDE-CODE-BRIEFING.md
+
+# Example reference files (large binaries)
+example-bin-files-reference/

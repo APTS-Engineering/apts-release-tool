@@ -1,0 +1,44 @@
+# ============================================================================
+# APTS-Release Tool — Configuration Template
+# ============================================================================
+# Copy this file to your firmware project root as: release-config.yaml
+# Then edit the values below for your machine.
+#
+# Example:
+#   cp release-config-template.yaml /path/to/XXX_APTS_PCB_FW/release-config.yaml
+# ============================================================================
+
+product:
+  name: YOUR-PRODUCT-NAME             # e.g. HSC-TUBE-CUTTER, SMART-PRESS, PULL-TESTER
+  board: APTS-IOT-V2-2                # board name (default, change only if different)
+
+# Project folder paths (relative to this config file)
+projects:
+  esp32_dir: XXX_ESP32_FW             # e.g. HST_ESP32_FW, SMP_ESP32_FW
+  stm32_dir: XXX_STM32_FW             # e.g. HST_STM32_FW, SMP_STM32_FW
+
+# ESP32 settings
+esp32:
+  build_dir: build                     # ESP-IDF build output directory
+  version:
+    file: CMakeLists.txt               # file containing set(PROJECT_VER "x.y.z")
+  webpage_version:
+    file: Webserver/data/Version.txt   # plain text file with web UI version
+
+# STM32 settings
+stm32:
+  build_dir: Debug                     # STM32CubeIDE build configuration
+  version:
+    file: Core/Inc/display/display_task.h
+    define: STM_FIRMWARE_VERSION       # #define name to extract version from
+  hmi_dir: HMI                         # HMI .tft folder at firmware root
+
+# Release settings
+release:
+  name: Your Machine Full Name         # e.g. "HSC Tube Cutting Machine" (shown in tracker)
+  released_by: Your Name               # e.g. "Siva" (falls back to PC username if empty)
+  output_dir: ./releases               # output directory for all release artifacts
+
+# GitHub Releases (optional — one repo per machine)
+github:
+  repo: APTS-Engineering/apts-your-machine-releases   # e.g. apts-hsc-tube-cutter-releases
