@@ -140,12 +140,15 @@ def main(
     # --- Scan files ---
     console.print("  [bold]Scanning projects...[/bold]")
     console.print()
+    firmware_root = config_file.parent if config_file else None
     manifest = scan_projects(
         esp32_dir,
         stm32_dir,
         esp32_build_subdir=cfg.esp32_build_dir,
         stm32_build_subdir=cfg.stm32_build_dir,
         hmi_subdir=cfg.hmi_dir,
+        firmware_root=firmware_root,
+        esp32_has_webpage=cfg.esp32_has_webpage,
     )
 
     _display_file_table("ESP32 Files", manifest.esp32_files)
@@ -253,6 +256,7 @@ def main(
                 versions=versions,
                 product_name=product_name,
                 output_dir=release_folder,
+                flash_address_overrides=cfg.esp32_flash_addresses or None,
             )
             results["rpi"] = rpi_result
             progress.advance(task)
@@ -802,6 +806,13 @@ def _resolve_project_dirs(
                 f"{', '.join(d.name for d in dirs)}. Use --stm32 to pick one.[/yellow]"
             )
 
+    # Drill-down: if config/auto-detect pointed to a wrapper folder (e.g. ESP32/),
+    # find the actual project root one level deeper (e.g. ESP32/HST_ESP32_FW/).
+    if esp32_dir is not None:
+        esp32_dir = _drill_down_esp32(esp32_dir)
+    if stm32_dir is not None:
+        stm32_dir = _drill_down_stm32(stm32_dir, cfg.stm32_build_dir or "Debug")
+
     # Validate
     if esp32_dir is None or stm32_dir is None:
         missing = []
@@ -829,6 +840,41 @@ def _resolve_project_dirs(
 
 
 # ---------------------------------------------------------------------------
+# Project directory helpers
+# ---------------------------------------------------------------------------
+
+
+def _drill_down_esp32(directory: Path) -> Path:
+    """If directory is a wrapper folder, find the ESP32 project root one level deeper.
+
+    Handles e.g. ESP32/HST_ESP32_FW/ where config points to ESP32/.
+    Uses CMakeLists.txt as the ESP-IDF project root marker.
+    """
+    if (directory / "CMakeLists.txt").is_file():
+        return directory
+    for sub in sorted(directory.iterdir()):
+        if sub.is_dir() and (sub / "CMakeLists.txt").is_file():
+            console.print(f"  [dim]ESP32 project root: {directory.name}/{sub.name}[/dim]")
+            return sub
+    return directory
+
+
+def _drill_down_stm32(directory: Path, build_subdir: str) -> Path:
+    """If directory is a wrapper folder, find the STM32 project root one level deeper.
+
+    Handles e.g. STM32/HST_STM32_FW/ where config points to STM32/.
+    Uses the build subdir (Debug/Release) as the project root marker.
+    """
+    if (directory / build_subdir).is_dir():
+        return directory
+    for sub in sorted(directory.iterdir()):
+        if sub.is_dir() and (sub / build_subdir).is_dir():
+            console.print(f"  [dim]STM32 project root: {directory.name}/{sub.name}[/dim]")
+            return sub
+    return directory
+
+
+# ---------------------------------------------------------------------------
 # Version extraction
 # ---------------------------------------------------------------------------
 
@@ -842,12 +888,20 @@ def _extract_versions(
     product_name: str,
 ) -> VersionInfo:
     """Extract all version strings from project sources."""
-    # ESP32: from CMakeLists.txt PROJECT_VER
-    esp32_ver = extract_cmake_project_ver(esp32_dir / cfg.esp32_version.file)
+    # ESP32 version: define (#define) > cmake (CMakeLists.txt) > plain file
+    esp32_ver_src = cfg.esp32_version
+    if esp32_ver_src.define:
+        esp32_ver = extract_define_version(
+            esp32_dir / esp32_ver_src.file, esp32_ver_src.define
+        )
+    elif esp32_ver_src.file.endswith("CMakeLists.txt"):
+        esp32_ver = extract_cmake_project_ver(esp32_dir / esp32_ver_src.file)
+    else:
+        esp32_ver = extract_version_from_file(esp32_dir / esp32_ver_src.file)
     if esp32_ver is None:
         console.print(
             "[yellow]  Warning: Could not extract ESP32 version "
-            f"from {cfg.esp32_version.file}[/yellow]"
+            f"from {esp32_ver_src.file}[/yellow]"
         )
         esp32_ver = typer.prompt("  Enter ESP32 firmware version manually (e.g. 1.0.0)")
 
@@ -866,16 +920,19 @@ def _extract_versions(
         )
         stm32_ver = typer.prompt("  Enter STM32 firmware version manually (e.g. 1.0.0)")
 
-    # Webpage: from Version.txt
-    webpage_ver = extract_version_from_file(
-        esp32_dir / cfg.esp32_webpage_version.file
-    )
-    if webpage_ver is None:
-        console.print(
-            "[yellow]  Warning: Could not extract webpage version "
-            f"from {cfg.esp32_webpage_version.file}[/yellow]"
+    # Webpage version: skip entirely when project has no web interface
+    if cfg.esp32_webpage_version is not None and cfg.esp32_has_webpage:
+        webpage_ver = extract_version_from_file(
+            esp32_dir / cfg.esp32_webpage_version.file
         )
-        webpage_ver = typer.prompt("  Enter Web UI version manually (e.g. 1.0.0)")
+        if webpage_ver is None:
+            console.print(
+                "[yellow]  Warning: Could not extract webpage version "
+                f"from {cfg.esp32_webpage_version.file}[/yellow]"
+            )
+            webpage_ver = typer.prompt("  Enter Web UI version manually (e.g. 1.0.0)")
+    else:
+        webpage_ver = None
 
     # HMI: from .tft filename
     hmi_ver: str | None = None

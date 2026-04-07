@@ -74,14 +74,25 @@ def _generate_config_json(
     stm32_version: str,
     app_fw_zip_name: str,
     machine_description: str,
+    present_logical_names: set,
+    flash_address_overrides: dict | None = None,
 ) -> dict:
-    """Generate the RPI programmer config.json matching the reference format."""
+    """Generate the RPI programmer config.json matching the reference format.
+
+    Only includes entries whose logical name is in present_logical_names,
+    so projects without webpage/CDN get a clean flash map.
+    flash_address_overrides allows per-project address customisation.
+    """
+    overrides = flash_address_overrides or {}
     firmware_files = []
     for entry in ESP32_FLASH_MAP:
+        if entry["logical"] not in present_logical_names:
+            continue
         zip_name = entry["zip_name"] if entry["zip_name"] else app_fw_zip_name
+        address = overrides.get(entry["logical"], entry["address"])
         firmware_files.append({
             "file": zip_name,
-            "address": entry["address"],
+            "address": address,
             "description": entry["description"],
         })
 
@@ -124,6 +135,7 @@ def generate_rpi_package(
     versions: VersionInfo,
     product_name: str,
     output_dir: Path,
+    flash_address_overrides: dict | None = None,
 ) -> PackageResult:
     """Generate the RPI flash programmer ZIP package."""
     ensure_dir(output_dir)
@@ -155,13 +167,15 @@ def generate_rpi_package(
         if stm32_fw:
             safe_copy(stm32_fw.path, tmp_dir / "stm32_firmware.bin")
 
-        # Generate config.json
+        # Generate config.json (only files present in this build)
         config = _generate_config_json(
             product_name=product_name,
             esp32_version=versions.esp32_version,
             stm32_version=versions.stm32_version,
             app_fw_zip_name=app_fw_zip_name,
             machine_description=f"{product_name} Machine",
+            present_logical_names=set(manifest.esp32_files.keys()),
+            flash_address_overrides=flash_address_overrides,
         )
         config_path = tmp_dir / "config.json"
         config_path.write_text(

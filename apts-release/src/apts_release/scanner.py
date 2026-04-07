@@ -57,8 +57,20 @@ def _find_esp32_app_firmware(build_dir: Path) -> Path | None:
     return None
 
 
-def scan_esp32(project_dir: Path, build_subdir: str = "build") -> tuple[dict[str, FileEntry], list[str]]:
-    """Scan ESP32 project for required bin files."""
+# Files that are only present on boards with a web interface
+_WEBPAGE_ONLY_FILES = {"webpage_1", "cdn"}
+
+
+def scan_esp32(
+    project_dir: Path,
+    build_subdir: str = "build",
+    has_webpage: bool = True,
+) -> tuple[dict[str, FileEntry], list[str]]:
+    """Scan ESP32 project for required bin files.
+
+    has_webpage=False skips webpage_1 and cdn (older PCB revisions without
+    a built-in web interface).
+    """
     build_dir = project_dir / build_subdir
     files: dict[str, FileEntry] = {}
     missing: list[str] = []
@@ -68,6 +80,9 @@ def scan_esp32(project_dir: Path, build_subdir: str = "build") -> tuple[dict[str
         return files, missing
 
     for name, rel_path in ESP32_FILE_MAP.items():
+        if not has_webpage and name in _WEBPAGE_ONLY_FILES:
+            continue  # not part of this project
+
         if name == "app_firmware":
             path = _find_esp32_app_firmware(build_dir)
             if path is None:
@@ -149,13 +164,17 @@ def scan_projects(
     esp32_build_subdir: str = "build",
     stm32_build_subdir: str = "Debug",
     hmi_subdir: str = "HMI",
+    firmware_root: Path | None = None,
+    esp32_has_webpage: bool = True,
 ) -> FileManifest:
     """Scan both projects and return a combined manifest."""
-    esp32_files, esp32_missing = scan_esp32(esp32_dir, esp32_build_subdir)
+    esp32_files, esp32_missing = scan_esp32(esp32_dir, esp32_build_subdir, has_webpage=esp32_has_webpage)
     stm32_files, stm32_missing = scan_stm32(stm32_dir, stm32_build_subdir)
 
-    # HMI: scan from firmware root (parent of ESP32/STM32 projects)
-    firmware_root = esp32_dir.parent
+    # HMI: scan from firmware root (where release-config.yaml lives).
+    # Falls back to esp32_dir.parent for backwards compatibility.
+    if firmware_root is None:
+        firmware_root = esp32_dir.parent
     hmi_entry = scan_hmi(firmware_root / hmi_subdir)
     if hmi_entry:
         stm32_files["hmi"] = hmi_entry

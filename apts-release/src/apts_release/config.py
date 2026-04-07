@@ -29,9 +29,14 @@ class ProjectConfig:
     esp32_version: VersionSource = field(
         default_factory=lambda: VersionSource(file="CMakeLists.txt")
     )
-    esp32_webpage_version: VersionSource = field(
+    # None = project has no web interface (webpage_1/cdn files are skipped)
+    esp32_webpage_version: VersionSource | None = field(
         default_factory=lambda: VersionSource(file="Webserver/data/Version.txt")
     )
+    # False = no webpage_1.bin / cdn.bin in this project (older PCB revisions)
+    esp32_has_webpage: bool = True
+    # Optional flash address overrides (e.g. app_firmware: "0x20000")
+    esp32_flash_addresses: dict = field(default_factory=dict)
 
     stm32_build_dir: str = "Debug"
     stm32_version: VersionSource = field(
@@ -86,12 +91,22 @@ def load_config(config_path: Path | None = None) -> ProjectConfig:
             file=ver["file"],
             define=ver.get("define"),
         )
+    # has_webpage: explicit false in config means no webpage_1/cdn for this project
+    if "has_webpage" in esp:
+        cfg.esp32_has_webpage = bool(esp["has_webpage"])
     web_ver = esp.get("webpage_version", {})
     if web_ver.get("file"):
         cfg.esp32_webpage_version = VersionSource(
             file=web_ver["file"],
             define=web_ver.get("define"),
         )
+    elif not esp.get("has_webpage", True):
+        # has_webpage: false with no webpage_version section → clear the default
+        cfg.esp32_webpage_version = None
+    # Optional flash address overrides
+    flash_addrs = esp.get("flash_addresses", {})
+    if flash_addrs and isinstance(flash_addrs, dict):
+        cfg.esp32_flash_addresses = flash_addrs
 
     # STM32
     stm = data.get("stm32", {})
