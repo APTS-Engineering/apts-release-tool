@@ -76,6 +76,8 @@ def _generate_config_json(
     machine_description: str,
     present_logical_names: set,
     flash_address_overrides: dict | None = None,
+    stm32_chip_type: str = "stm32h723xx",
+    has_webpage: bool = True,
 ) -> dict:
     """Generate the RPI programmer config.json matching the reference format.
 
@@ -111,10 +113,10 @@ def _generate_config_json(
         },
         "stm32": {
             "enabled": True,
-            "chip_type": "stm32h723xx",
+            "chip_type": stm32_chip_type,
             "firmware_file": "stm32_firmware.bin",
             "flash_start_address": "0x08000000",
-            "description": "STM32H723 motor/press controller firmware",
+            "description": f"{stm32_chip_type.upper().rstrip('XX')} controller firmware",
         },
         "options": {
             "auto_erase": False,
@@ -125,7 +127,9 @@ def _generate_config_json(
             "created_date": datetime.now().strftime("%Y-%m-%d"),
             "author": "Engineering Team",
             "machine_type": product_name,
-            "notes": "Includes web interface and OTA update capability",
+            "notes": "Includes web interface and OTA update capability"
+            if has_webpage
+            else "Core firmware (no web interface)",
         },
     }
 
@@ -136,6 +140,8 @@ def generate_rpi_package(
     product_name: str,
     output_dir: Path,
     flash_address_overrides: dict | None = None,
+    stm32_chip_type: str = "stm32h723xx",
+    has_webpage: bool = True,
 ) -> PackageResult:
     """Generate the RPI flash programmer ZIP package."""
     ensure_dir(output_dir)
@@ -176,6 +182,8 @@ def generate_rpi_package(
             machine_description=f"{product_name} Machine",
             present_logical_names=set(manifest.esp32_files.keys()),
             flash_address_overrides=flash_address_overrides,
+            stm32_chip_type=stm32_chip_type,
+            has_webpage=has_webpage,
         )
         config_path = tmp_dir / "config.json"
         config_path.write_text(

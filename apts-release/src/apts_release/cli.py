@@ -257,6 +257,8 @@ def main(
                 product_name=product_name,
                 output_dir=release_folder,
                 flash_address_overrides=cfg.esp32_flash_addresses or None,
+                stm32_chip_type=cfg.stm32_chip_type,
+                has_webpage=cfg.esp32_has_webpage,
             )
             results["rpi"] = rpi_result
             progress.advance(task)

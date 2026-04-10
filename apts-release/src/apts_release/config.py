@@ -38,6 +38,7 @@ class ProjectConfig:
     # Optional flash address overrides (e.g. app_firmware: "0x20000")
     esp32_flash_addresses: dict = field(default_factory=dict)
 
+    stm32_chip_type: str = "stm32h723xx"  # used in config.json for RPI programmer
     stm32_build_dir: str = "Debug"
     stm32_version: VersionSource = field(
         default_factory=lambda: VersionSource(
@@ -110,6 +111,8 @@ def load_config(config_path: Path | None = None) -> ProjectConfig:
 
     # STM32
     stm = data.get("stm32", {})
+    if stm.get("chip_type"):
+        cfg.stm32_chip_type = stm["chip_type"]
     if stm.get("build_dir"):
         cfg.stm32_build_dir = stm["build_dir"]
     ver = stm.get("version", {})
