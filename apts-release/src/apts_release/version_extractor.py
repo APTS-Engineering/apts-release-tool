@@ -25,11 +25,33 @@ def extract_cmake_project_ver(cmake_path: Path) -> str | None:
 
 
 def extract_define_version(header_path: Path, define_name: str) -> str | None:
-    """Extract a version string from a C #define (e.g. #define STM_FIRMWARE_VERSION "1.0.0")."""
-    pattern = rf'#define\s+{re.escape(define_name)}\s+"([^"]+)"'
+    """Extract a version from a C #define — supports quoted strings and bare numbers.
+
+    Matches:
+      #define STM_FIRMWARE_VERSION "1.0.0"   -> "1.0.0"
+      #define STM_FIRMWARE_VERSION 8.0f      -> "8.0"
+      #define STM_FIRMWARE_VERSION 8.0       -> "8.0"
+      #define STM_FIRMWARE_VERSION 3         -> "3.0"
+    """
     content = header_path.read_text(encoding="utf-8", errors="replace")
-    match = re.search(pattern, content)
-    return match.group(1) if match else None
+
+    # Try quoted string first: #define NAME "x.y.z"
+    quoted = rf'#define\s+{re.escape(define_name)}\s+"([^"]+)"'
+    match = re.search(quoted, content)
+    if match:
+        return match.group(1)
+
+    # Fall back to bare numeric: #define NAME 8.0f or #define NAME 8.0 or #define NAME 3
+    bare = rf'#define\s+{re.escape(define_name)}\s+(\d+(?:\.\d+)*)f?'
+    match = re.search(bare, content)
+    if match:
+        ver = match.group(1)
+        # Ensure at least major.minor format
+        if "." not in ver:
+            ver += ".0"
+        return ver
+
+    return None
 
 
 def extract_version_from_file(version_file: Path) -> str | None:
